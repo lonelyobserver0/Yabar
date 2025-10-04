@@ -18,6 +18,7 @@ ShellRoot {
         
         property var windowList: []
         property var hiddenWindowsWorkspaces: ({}) // Mappa address -> workspace ID originale
+        property bool isVisible: false
         
         anchors {
             bottom: true
@@ -26,12 +27,44 @@ ShellRoot {
         }
         
         margins {
-            bottom: 10
+            bottom: isVisible ? 10 : -60 // Nascondi sotto lo schermo quando non visibile
         }
         
         implicitHeight: 70
         
         color: "transparent"
+        
+        // Area sensibile per mostrare il dock
+        MouseArea {
+            anchors.fill: parent
+            anchors.bottomMargin: -20 // Estendi l'area oltre il bordo
+            hoverEnabled: true
+            
+            onEntered: {
+                dock.isVisible = true
+            }
+            
+            onExited: {
+                // Delay prima di nascondere
+                hideTimer.restart()
+            }
+        }
+        
+        // Timer per nascondere il dock con delay
+        Timer {
+            id: hideTimer
+            interval: 500 // Attendi 500ms prima di nascondere
+            onTriggered: {
+                dock.isVisible = false
+            }
+        }
+        
+        Behavior on margins.bottom {
+            NumberAnimation {
+                duration: 200
+                easing.type: Easing.OutCubic
+            }
+        }
         
         // Aggiorna la lista delle finestre
         function updateWindowList() {
