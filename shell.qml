@@ -27,27 +27,34 @@ ShellRoot {
         }
         
         margins {
-            bottom: isVisible ? 10 : -60 // Nascondi sotto lo schermo quando non visibile
+            bottom: 0
         }
         
-        implicitHeight: 70
+        implicitHeight: isVisible ? 60 : 5 // Solo 5px quando nascosto per la zona sensibile
         
         color: "transparent"
+        
+        exclusionMode: ExclusionMode.Ignore // Non riserva spazio
+        exclusiveZone: 0 // Non riserva zona esclusiva
         
         // Area sensibile per mostrare il dock
         MouseArea {
             anchors.fill: parent
             anchors.bottomMargin: -20 // Estendi l'area oltre il bordo
             hoverEnabled: true
+            propagateComposedEvents: true // Permetti click sui bottoni
             
             onEntered: {
                 dock.isVisible = true
+                hideTimer.stop()
             }
             
             onExited: {
                 // Delay prima di nascondere
                 hideTimer.restart()
             }
+            
+            onPressed: mouse.accepted = false // Passa i click ai figli
         }
         
         // Timer per nascondere il dock con delay
@@ -100,10 +107,37 @@ ShellRoot {
             anchors.centerIn: parent
             width: Math.max(appRow.implicitWidth + 20, 100)
             height: 60
-            color: "#CC1a1a1a"
+            visible: dock.isVisible
+            opacity: dock.isVisible ? 1 : 0
+            color: "#131317"
             radius: 15
             border.color: "#33ffffff"
             border.width: 1
+            
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: 200
+                    easing.type: Easing.OutCubic
+                }
+            }
+            
+            // MouseArea per mantenere il dock visibile quando mouse è sopra il contenuto
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                propagateComposedEvents: true
+                
+                onEntered: {
+                    dock.isVisible = true
+                    hideTimer.stop()
+                }
+                
+                onExited: {
+                    hideTimer.restart()
+                }
+                
+                onPressed: mouse.accepted = false
+            }
             
             Text {
                 anchors.centerIn: parent
@@ -128,18 +162,10 @@ ShellRoot {
                         
                         width: 48
                         height: 48
-                        color: {
-                            if (!modelData || !modelData.workspace) return "#55ffffff"
-                            // Finestra nascosta
-                            if (modelData.workspace.id < 0) return "#33ffffff"
-                            // Finestra attiva
-                            if (modelData.activated) return "#77ffffff"
-                            // Finestra normale
-                            return "#55ffffff"
-                        }
+                        color: "transparent"
                         radius: 8
-                        border.color: modelData && modelData.activated ? "#ffffff" : "#66ffffff"
-                        border.width: modelData && modelData.activated ? 2 : 1
+                        border.color: modelData && modelData.activated ? "#ffffff" : "transparent"
+                        border.width: modelData && modelData.activated ? 2 : 0
                         
                         Image {
                             id: appIcon
@@ -192,10 +218,6 @@ ShellRoot {
                                 duration: 150
                                 easing.type: Easing.OutCubic
                             }
-                        }
-                        
-                        Behavior on color {
-                            ColorAnimation { duration: 200 }
                         }
                         
                         Behavior on border.width {
