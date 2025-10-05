@@ -80,7 +80,14 @@ ShellRoot {
             if (Hyprland.toplevels && Hyprland.toplevels.values) {
                 for (var i = 0; i < Hyprland.toplevels.values.length; i++) {
                     var win = Hyprland.toplevels.values[i]
-                    // Mostra tutte le finestre, incluse quelle nascoste (id === -99)
+                    
+                    // Filtra finestre senza lastIpcObject o senza class
+                    if (!win.lastIpcObject || !win.lastIpcObject.class || win.lastIpcObject.class === "") {
+                        console.log("Finestra filtrata - no class:", win.title, "Address:", win.address)
+                        continue
+                    }
+                    
+                    // Mostra tutte le finestre valide, incluse quelle nascoste
                     allWindows.push(win)
                 }
             }
