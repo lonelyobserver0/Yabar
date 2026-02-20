@@ -4,19 +4,26 @@ import QtQuick
 import QtQuick.Layouts
 
 ShellRoot {
-    // Connessione ai cambiamenti delle finestre
+    // Ascolta gli eventi Hyprland per aggiornare la lista delle finestre
     Connections {
-        target: Hyprland.toplevels
-        
-        function onValuesChanged() {
-            dock.updateWindowList()
+        target: Hyprland
+
+        function onRawEvent(event) {
+            var n = event.name
+            if (n.endsWith("v2")) return
+
+            if (["openwindow", "closewindow", "movewindow"].includes(n)) {
+                Hyprland.refreshToplevels()
+                Hyprland.refreshWorkspaces()
+            } else if (n.includes("window") || ["pin", "fullscreen", "changefloatingmode", "minimize"].includes(n)) {
+                Hyprland.refreshToplevels()
+            }
         }
     }
 
     PanelWindow {
         id: dock
-        
-        property var windowList: []
+
         property var hiddenWindowsWorkspaces: ({}) // Mappa address -> workspace ID originale
         property bool isVisible: false
         
@@ -73,41 +80,9 @@ ShellRoot {
             }
         }
         
-        // Aggiorna la lista delle finestre
-        function updateWindowList() {
-            var allWindows = []
-            
-            if (Hyprland.toplevels && Hyprland.toplevels.values) {
-                for (var i = 0; i < Hyprland.toplevels.values.length; i++) {
-                    var win = Hyprland.toplevels.values[i]
-                    
-                    // Filtra finestre senza lastIpcObject o senza class
-                    if (!win.lastIpcObject || !win.lastIpcObject.class || win.lastIpcObject.class === "") {
-                        console.log("Finestra filtrata - no class:", win.title, "Address:", win.address)
-                        continue
-                    }
-                    
-                    // Mostra tutte le finestre valide, incluse quelle nascoste
-                    allWindows.push(win)
-                }
-            }
-            
-            windowList = allWindows
-            windowRepeater.model = allWindows
-        }
-        
-        Component.onCompleted: {
-            updateWindowList()
-        }
-        
-        // Timer per aggiornamento periodico (fallback)
-        Timer {
-            interval: 2000 // Aggiorna ogni 2 secondi
-            running: true
-            repeat: true
-            onTriggered: {
-                dock.updateWindowList()
-            }
+        // Funzione helper per verificare se una finestra è valida
+        function isValidWindow(win) {
+            return win && win.lastIpcObject && win.lastIpcObject.class && win.lastIpcObject.class !== ""
         }
         
         Rectangle {
@@ -161,13 +136,16 @@ ShellRoot {
                 
                 Repeater {
                     id: windowRepeater
-                    model: []
-                    
+                    model: Hyprland.toplevels
+
                     delegate: Rectangle {
                         required property var modelData
                         required property int index
-                        
-                        width: 48
+
+                        // Filtra finestre senza class
+                        property bool validWindow: dock.isValidWindow(modelData)
+                        visible: validWindow
+                        width: validWindow ? 48 : 0
                         height: 48
                         color: "transparent"
                         radius: 8
