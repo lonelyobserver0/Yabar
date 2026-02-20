@@ -1,5 +1,6 @@
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Io
 import QtQuick
 import QtQuick.Layouts
 
@@ -67,7 +68,7 @@ ShellRoot {
         // Timer per nascondere il dock con delay
         Timer {
             id: hideTimer
-            interval: 500 // Attendi 500ms prima di nascondere
+            interval: 200 // Attendi 200ms prima di nascondere
             onTriggered: {
                 dock.isVisible = false
             }
@@ -157,7 +158,8 @@ ShellRoot {
                             anchors.centerIn: parent
                             width: 32
                             height: 32
-                            source: modelData && modelData.lastIpcObject ? dock.getAppIcon(modelData.lastIpcObject.class) : ""
+                            // Riferimento esplicito a desktopIconMap per rendere il binding reattivo
+                            source: modelData && modelData.lastIpcObject ? dock.getAppIcon(modelData.lastIpcObject.class, dock.desktopIconMap) : ""
                             smooth: true
                         }
                         
@@ -213,36 +215,37 @@ ShellRoot {
             }
         }
         
-        function getAppIcon(appClass) {
+        property var desktopIconMap: ({})
+
+        function getAppIcon(appClass, iconMap) {
             if (!appClass) return ""
-            
-            var iconMap = {
-                "firefox": "/usr/share/icons/hicolor/48x48/apps/firefox.png",
-                "firefox-esr": "/usr/share/icons/hicolor/48x48/apps/firefox-esr.png",
-                "chromium": "/usr/share/icons/hicolor/48x48/apps/chromium.png",
-                "google-chrome": "/usr/share/icons/hicolor/48x48/apps/google-chrome.png",
-                "brave-browser": "/usr/share/icons/hicolor/48x48/apps/brave-browser.png",
-                "kitty": "/usr/share/icons/hicolor/48x48/apps/kitty.png",
-                "alacritty": "/usr/share/icons/hicolor/48x48/apps/Alacritty.png",
-                "wezterm": "/usr/share/icons/hicolor/48x48/apps/wezterm.png",
-                "code": "/usr/share/icons/hicolor/48x48/apps/code.png",
-                "vscodium": "/usr/share/icons/hicolor/48x48/apps/vscodium.png",
-                "org.kde.dolphin": "/usr/share/icons/hicolor/48x48/apps/dolphin.png",
-                "org.gnome.nautilus": "/usr/share/icons/hicolor/48x48/apps/nautilus.png",
-                "thunar": "/usr/share/icons/hicolor/48x48/apps/thunar.png",
-                "discord": "/usr/share/icons/hicolor/48x48/apps/discord.png",
-                "spotify": "/usr/share/icons/hicolor/48x48/apps/spotify.png",
-                "slack": "/usr/share/icons/hicolor/48x48/apps/slack.png",
-                "telegram-desktop": "/usr/share/icons/hicolor/48x48/apps/telegram.png",
-                "gimp-2.10": "/usr/share/icons/hicolor/48x48/apps/gimp.png",
-                "inkscape": "/usr/share/icons/hicolor/48x48/apps/inkscape.png",
-                "com.obsproject.studio": "/usr/share/icons/hicolor/48x48/apps/obs.png",
-                "vlc": "/usr/share/icons/hicolor/48x48/apps/vlc.png",
-                "org.keepassxc.keepassxc": "/usr/share/icons/hicolor/48x48/apps/keepassxc.png",
-                "thunderbird": "/usr/share/icons/hicolor/48x48/apps/thunderbird.png"
+            var key = appClass.toLowerCase()
+            // Usa il nome icona dal .desktop file se disponibile, altrimenti il nome della classe
+            var iconName = iconMap[key] || key
+            return Quickshell.iconPath(iconName)
+        }
+
+        // Costruisci mappa class→icon dai .desktop files all'avvio
+        Process {
+            id: iconScanner
+            running: true
+            command: ["sh", "-c", "for f in /usr/share/applications/*.desktop ~/.local/share/applications/*.desktop; do [ -f \"$f\" ] || continue; icon=$(grep -m1 '^Icon=' \"$f\" | cut -d= -f2); wmc=$(grep -m1 '^StartupWMClass=' \"$f\" | cut -d= -f2); name=$(basename \"$f\" .desktop); [ -n \"$icon\" ] && echo \"$name|$wmc|$icon\"; done"]
+            stdout: StdioCollector {
+                onStreamFinished: {
+                    var lines = text.trim().split("\n")
+                    var map = {}
+                    for (var i = 0; i < lines.length; i++) {
+                        var parts = lines[i].split("|")
+                        if (parts.length < 3 || !parts[2]) continue
+                        var name = parts[0].toLowerCase()
+                        var wmclass = parts[1].toLowerCase()
+                        var icon = parts[2]
+                        map[name] = icon
+                        if (wmclass) map[wmclass] = icon
+                    }
+                    dock.desktopIconMap = map
+                }
             }
-            
-            return iconMap[appClass.toLowerCase()] || ""
         }
         
         function toggleWindow(window) {
