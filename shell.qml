@@ -45,24 +45,16 @@ ShellRoot {
         exclusionMode: ExclusionMode.Ignore // Non riserva spazio
         exclusiveZone: 0 // Non riserva zona esclusiva
         
-        // Area sensibile per mostrare il dock
-        MouseArea {
-            anchors.fill: parent
-            anchors.bottomMargin: -20 // Estendi l'area oltre il bordo
-            hoverEnabled: true
-            propagateComposedEvents: true // Permetti click sui bottoni
-            
-            onEntered: {
-                dock.isVisible = true
-                hideTimer.stop()
+        // Area sensibile per mostrare il dock (HoverHandler non intercetta click)
+        HoverHandler {
+            onHoveredChanged: {
+                if (hovered) {
+                    dock.isVisible = true
+                    hideTimer.stop()
+                } else {
+                    hideTimer.restart()
+                }
             }
-            
-            onExited: {
-                // Delay prima di nascondere
-                hideTimer.restart()
-            }
-            
-            onPressed: mouse.accepted = false // Passa i click ai figli
         }
         
         // Timer per nascondere il dock con delay
@@ -104,22 +96,16 @@ ShellRoot {
                 }
             }
             
-            // MouseArea per mantenere il dock visibile quando mouse è sopra il contenuto
-            MouseArea {
-                anchors.fill: parent
-                hoverEnabled: true
-                propagateComposedEvents: true
-                
-                onEntered: {
-                    dock.isVisible = true
-                    hideTimer.stop()
+            // HoverHandler per mantenere il dock visibile quando mouse è sopra il contenuto
+            HoverHandler {
+                onHoveredChanged: {
+                    if (hovered) {
+                        dock.isVisible = true
+                        hideTimer.stop()
+                    } else {
+                        hideTimer.restart()
+                    }
                 }
-                
-                onExited: {
-                    hideTimer.restart()
-                }
-                
-                onPressed: mouse.accepted = false
             }
             
             Text {
@@ -189,13 +175,18 @@ ShellRoot {
                         
                         MouseArea {
                             anchors.fill: parent
-                            onClicked: {
-                                if (modelData) {
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            hoverEnabled: true
+
+                            onClicked: function(mouse) {
+                                if (!modelData) return
+                                if (mouse.button === Qt.RightButton) {
                                     dock.toggleWindow(modelData)
+                                } else {
+                                    dock.focusWindow(modelData)
                                 }
                             }
-                            hoverEnabled: true
-                            
+
                             onEntered: parent.scale = 1.15
                             onExited: parent.scale = 1.0
                         }
@@ -248,6 +239,12 @@ ShellRoot {
             }
         }
         
+        function focusWindow(window) {
+            if (!window) return
+            var addr = "address:0x" + window.address
+            Hyprland.dispatch("focuswindow " + addr)
+        }
+
         function toggleWindow(window) {
             if (!window || !window.workspace) return
             
@@ -258,18 +255,16 @@ ShellRoot {
                 var originalWs = hiddenWindowsWorkspaces[window.address]
                 
                 if (originalWs !== undefined) {
-                    // Riporta al workspace originale
-                    Hyprland.dispatch("movetoworkspacesilent " + originalWs + "," + addr)
-                    Hyprland.dispatch("focuswindow " + addr)
-                    
+                    // Riporta al workspace originale (movetoworkspace vincola la finestra al workspace)
+                    Hyprland.dispatch("movetoworkspace " + originalWs + "," + addr)
+
                     // Rimuovi dalla mappa
                     delete hiddenWindowsWorkspaces[window.address]
                     hiddenWindowsWorkspaces = hiddenWindowsWorkspaces // Trigger update
                 } else {
                     // Fallback: riporta al workspace corrente
                     var currentWs = Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : 1
-                    Hyprland.dispatch("movetoworkspacesilent " + currentWs + "," + addr)
-                    Hyprland.dispatch("focuswindow " + addr)
+                    Hyprland.dispatch("movetoworkspace " + currentWs + "," + addr)
                 }
             } else {
                 // Finestra visibile (attiva o no), salvare il workspace e nasconderla

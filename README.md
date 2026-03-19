@@ -1,4 +1,4 @@
-# Yabar - A dock fro Hyprland
+# Yabar - A dock for Hyprland
 It is an application bar with dynamic width and auto-hide, it can hide window.  
 Being a QML file you can use in C application or with tool like [`quickshell`](https://git.outfoxxed.me/quickshell/quickshell)
 
