@@ -5,6 +5,13 @@ import QtQuick
 import QtQuick.Layouts
 
 ShellRoot {
+    // Popola la lista all'avvio: nelle versioni recenti di Quickshell
+    // Hyprland.toplevels non viene più caricata automaticamente dal binding
+    Component.onCompleted: {
+        Hyprland.refreshToplevels()
+        Hyprland.refreshWorkspaces()
+    }
+
     // Ascolta gli eventi Hyprland per aggiornare la lista delle finestre
     Connections {
         target: Hyprland
@@ -75,7 +82,7 @@ ShellRoot {
         
         // Funzione helper per verificare se una finestra è valida
         function isValidWindow(win) {
-            return win && win.lastIpcObject && win.lastIpcObject.class && win.lastIpcObject.class !== ""
+            return !!(win && win.lastIpcObject && win.lastIpcObject.class && win.lastIpcObject.class !== "")
         }
         
         Rectangle {
@@ -239,24 +246,28 @@ ShellRoot {
             }
         }
         
+        // Selettore finestra per la nuova API Lua di Hyprland (>= 0.55)
+        function windowSelector(window) {
+            return "address:0x" + window.address
+        }
+
         function focusWindow(window) {
             if (!window) return
-            var addr = "address:0x" + window.address
-            Hyprland.dispatch("focuswindow " + addr)
+            Hyprland.dispatch('hl.dsp.focus({ window = "' + windowSelector(window) + '" })')
         }
 
         function toggleWindow(window) {
             if (!window || !window.workspace) return
-            
-            var addr = "address:0x" + window.address
-            
+
+            var sel = windowSelector(window)
+
             if (window.workspace.id < 0) {
                 // Finestra nascosta (workspace speciale negativo), riportala al workspace originale
                 var originalWs = hiddenWindowsWorkspaces[window.address]
-                
+
                 if (originalWs !== undefined) {
-                    // Riporta al workspace originale (movetoworkspace vincola la finestra al workspace)
-                    Hyprland.dispatch("movetoworkspace " + originalWs + "," + addr)
+                    // Riporta al workspace originale
+                    Hyprland.dispatch('hl.dsp.window.move({ workspace = ' + originalWs + ', window = "' + sel + '" })')
 
                     // Rimuovi dalla mappa
                     delete hiddenWindowsWorkspaces[window.address]
@@ -264,14 +275,18 @@ ShellRoot {
                 } else {
                     // Fallback: riporta al workspace corrente
                     var currentWs = Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : 1
-                    Hyprland.dispatch("movetoworkspace " + currentWs + "," + addr)
+                    Hyprland.dispatch('hl.dsp.window.move({ workspace = ' + currentWs + ', window = "' + sel + '" })')
                 }
             } else {
                 // Finestra visibile (attiva o no), salvare il workspace e nasconderla
                 hiddenWindowsWorkspaces[window.address] = window.workspace.id
                 hiddenWindowsWorkspaces = hiddenWindowsWorkspaces // Trigger update
-                
-                Hyprland.dispatch("movetoworkspacesilent special:hidden," + addr)
+
+                // Spostare una finestra in special:hidden apre il workspace speciale
+                // sul monitor (silent non lo impedisce nella nuova API): chiudilo subito
+                // con toggle_special così la finestra resta effettivamente nascosta.
+                Hyprland.dispatch('hl.dsp.window.move({ workspace = "special:hidden", window = "' + sel + '", silent = true })')
+                Hyprland.dispatch('hl.dsp.workspace.toggle_special("hidden")')
             }
         }
     }

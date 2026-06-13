@@ -7,4 +7,4 @@ To use with quickshell just copy `shell.qml` into `~/.config/quickshell/yabar` a
 You can add icons to app just by modifying `iconMap` variable in the code.
 
 # To use
-Dock will appaer when you move the mouse on the bootom border of the screen. When you click an icon its app window will hide to return with a second click.
+Dock will appaer when you move the mouse on the bootom border of the screen. Left-click an icon to focus its window; right-click to hide it (and right-click again to bring it back).
